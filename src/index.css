@@ -749,10 +749,11 @@ body {
   white-space: nowrap;
 }
 
-.tag-pill.occasion  { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
-.tag-pill.seasonal  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
-.tag-pill.audience  { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
-.tag-pill.discount  { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
+.tag-pill.occasion        { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.tag-pill.seasonal        { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.tag-pill.audience        { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
+.tag-pill.discount        { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
+.tag-pill.business-model  { background: #fefce8; color: #a16207; border: 1px solid #fde68a; }
 
 /* ── Card tag strip ── */
 .card-tags {
@@ -812,12 +813,48 @@ body {
 
 .tag-toggle .check { font-size: 0.7rem; }
 
-.tag-toggle.occasion.selected  { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
-.tag-toggle.seasonal.selected  { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
-.tag-toggle.audience.selected  { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
-.tag-toggle.discount.selected  { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
+.tag-toggle.occasion.selected       { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.tag-toggle.seasonal.selected       { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.tag-toggle.audience.selected       { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+.tag-toggle.discount.selected       { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
+.tag-toggle.business-model.selected { background: #fefce8; color: #a16207; border-color: #fde68a; }
+.tag-toggle.new-sub-cat.selected    { background: #ecfdf5; color: #065f46; border-color: #6ee7b7; }
 
 .tag-toggle:hover:not(.selected) { background: #f0f0f0; border-color: #ccc; }
+
+/* New taxonomy card display */
+.tag.new-top-cat {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.tag.new-sub-cat {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #6ee7b7;
+  font-size: 0.75rem;
+}
+
+/* Subcategory group in modal */
+.subcat-group {
+  margin-bottom: 12px;
+}
+
+.subcat-group-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+/* Business-model tab */
+.tag-type-tab.business-model.active { background: #fefce8; color: #a16207; border-color: #fde68a; }
+.tag-type-tab.new-sub-cat.active    { background: #ecfdf5; color: #065f46; border-color: #6ee7b7; }
 
 /* ── Tag Manager page ── */
 .tag-groups {

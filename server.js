@@ -65,12 +65,46 @@ app.get('/api/merchants', (_req, res) => {
       FROM merchant_tag mt
       JOIN tag t ON t.id = mt.tag_id AND t.disabled = 'f'
       GROUP BY mt.merchant_id
+    ),
+    new_cats AS (
+      SELECT
+        ms.merchant_id,
+        GROUP_CONCAT(DISTINCT ct.name) AS new_top_categories,
+        GROUP_CONCAT(DISTINCT s.name)  AS new_subcategories
+      FROM merchant_subcategory ms
+      JOIN subcategory s  ON s.id = ms.subcategory_id
+      JOIN category_top ct ON ct.id = s.top_category_id
+      GROUP BY ms.merchant_id
+    ),
+    occ_tgs AS (
+      SELECT mot.merchant_id, GROUP_CONCAT(ot.name, ',') AS occasion_tags
+      FROM merchant_occasion_tag mot
+      JOIN occasion_tag ot ON ot.id = mot.occasion_tag_id
+      GROUP BY mot.merchant_id
+    ),
+    aud_tgs AS (
+      SELECT mat.merchant_id, GROUP_CONCAT(at.name, ',') AS audience_tags
+      FROM merchant_audience_tag mat
+      JOIN audience_tag at ON at.id = mat.audience_tag_id
+      GROUP BY mat.merchant_id
+    ),
+    biz_tgs AS (
+      SELECT mbt.merchant_id, GROUP_CONCAT(bmt.name, ',') AS business_model_tags
+      FROM merchant_business_model_tag mbt
+      JOIN business_model_tag bmt ON bmt.id = mbt.business_model_tag_id
+      GROUP BY mbt.merchant_id
     )
-    SELECT b.*, ne.networks, ca.categories, ca.primary_category, tg.tags
+    SELECT b.*, ne.networks, ca.categories, ca.primary_category, tg.tags,
+           nc.new_top_categories, nc.new_subcategories,
+           ot.occasion_tags, at.audience_tags, bt.business_model_tags
     FROM base b
-    LEFT JOIN nets ne ON ne.merchant_id = b.id
-    LEFT JOIN cats ca ON ca.merchant_id = b.id
-    LEFT JOIN tgs tg ON tg.merchant_id = b.id
+    LEFT JOIN nets ne    ON ne.merchant_id = b.id
+    LEFT JOIN cats ca    ON ca.merchant_id = b.id
+    LEFT JOIN tgs tg     ON tg.merchant_id = b.id
+    LEFT JOIN new_cats nc ON nc.merchant_id = b.id
+    LEFT JOIN occ_tgs ot ON ot.merchant_id = b.id
+    LEFT JOIN aud_tgs at ON at.merchant_id = b.id
+    LEFT JOIN biz_tgs bt ON bt.merchant_id = b.id
     ORDER BY b.name COLLATE NOCASE
   `).all()
 
@@ -231,6 +265,99 @@ app.put('/api/merchants/:id/categories', (req, res) => {
     }
   })()
 
+  res.json({ ok: true })
+})
+
+// ── New taxonomy: category_top / subcategory ──────────────────────────────
+
+// GET /api/category-top — all top-level categories
+app.get('/api/category-top', (_req, res) => {
+  res.json(db.prepare(`SELECT * FROM category_top ORDER BY name`).all())
+})
+
+// GET /api/subcategories — all subcategories with top category info
+app.get('/api/subcategories', (_req, res) => {
+  const rows = db.prepare(`
+    SELECT s.id, s.name, s.top_category_id, ct.name AS top_category_name
+    FROM subcategory s JOIN category_top ct ON ct.id = s.top_category_id
+    ORDER BY ct.name, s.name
+  `).all()
+  res.json(rows)
+})
+
+// GET /api/merchants/:id/subcategories — new subcategories for a merchant
+app.get('/api/merchants/:id/subcategories', (req, res) => {
+  const rows = db.prepare(`
+    SELECT ms.subcategory_id, s.name AS subcategory, ct.name AS top_category,
+           ms.basis, ms.confidence
+    FROM merchant_subcategory ms
+    JOIN subcategory s  ON s.id = ms.subcategory_id
+    JOIN category_top ct ON ct.id = s.top_category_id
+    WHERE ms.merchant_id = ?
+    ORDER BY ct.name, s.name
+  `).all(req.params.id)
+  res.json(rows)
+})
+
+// PUT /api/merchants/:id/subcategories — replace new subcategory assignments
+app.put('/api/merchants/:id/subcategories', (req, res) => {
+  const { subcategory_ids } = req.body
+  if (!Array.isArray(subcategory_ids)) return res.status(400).json({ error: 'subcategory_ids must be an array' })
+  db.transaction(() => {
+    db.prepare(`DELETE FROM merchant_subcategory WHERE merchant_id = ?`).run(req.params.id)
+    const insert = db.prepare(`INSERT INTO merchant_subcategory (merchant_id, subcategory_id, basis, confidence) VALUES (?, ?, 'manual', 'High')`)
+    for (const id of subcategory_ids) insert.run(req.params.id, id)
+  })()
+  res.json({ ok: true })
+})
+
+// ── New taxonomy: occasion / audience / business model tags ───────────────
+
+app.get('/api/occasion-tags', (_req, res) => {
+  res.json(db.prepare(`SELECT * FROM occasion_tag ORDER BY name`).all())
+})
+
+app.get('/api/audience-tags', (_req, res) => {
+  res.json(db.prepare(`SELECT * FROM audience_tag ORDER BY name`).all())
+})
+
+app.get('/api/business-model-tags', (_req, res) => {
+  res.json(db.prepare(`SELECT * FROM business_model_tag ORDER BY name`).all())
+})
+
+// PUT /api/merchants/:id/occasion-tags
+app.put('/api/merchants/:id/occasion-tags', (req, res) => {
+  const { tag_ids } = req.body
+  if (!Array.isArray(tag_ids)) return res.status(400).json({ error: 'tag_ids must be an array' })
+  db.transaction(() => {
+    db.prepare(`DELETE FROM merchant_occasion_tag WHERE merchant_id = ?`).run(req.params.id)
+    const ins = db.prepare(`INSERT INTO merchant_occasion_tag (merchant_id, occasion_tag_id) VALUES (?, ?)`)
+    for (const id of tag_ids) ins.run(req.params.id, id)
+  })()
+  res.json({ ok: true })
+})
+
+// PUT /api/merchants/:id/audience-tags
+app.put('/api/merchants/:id/audience-tags', (req, res) => {
+  const { tag_ids } = req.body
+  if (!Array.isArray(tag_ids)) return res.status(400).json({ error: 'tag_ids must be an array' })
+  db.transaction(() => {
+    db.prepare(`DELETE FROM merchant_audience_tag WHERE merchant_id = ?`).run(req.params.id)
+    const ins = db.prepare(`INSERT INTO merchant_audience_tag (merchant_id, audience_tag_id) VALUES (?, ?)`)
+    for (const id of tag_ids) ins.run(req.params.id, id)
+  })()
+  res.json({ ok: true })
+})
+
+// PUT /api/merchants/:id/business-model-tags
+app.put('/api/merchants/:id/business-model-tags', (req, res) => {
+  const { tag_ids } = req.body
+  if (!Array.isArray(tag_ids)) return res.status(400).json({ error: 'tag_ids must be an array' })
+  db.transaction(() => {
+    db.prepare(`DELETE FROM merchant_business_model_tag WHERE merchant_id = ?`).run(req.params.id)
+    const ins = db.prepare(`INSERT INTO merchant_business_model_tag (merchant_id, business_model_tag_id) VALUES (?, ?)`)
+    for (const id of tag_ids) ins.run(req.params.id, id)
+  })()
   res.json({ ok: true })
 })
 

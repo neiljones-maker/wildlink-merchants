@@ -20,11 +20,29 @@ function formatRate(rate) {
 }
 
 function MerchantCard({ merchant, onClick }) {
-  const cats = merchant.categories
-    ? merchant.categories.split(',').map(c => c.trim()).filter(Boolean)
-    : []
-  const primary = merchant.primary_category?.trim()
   const rate = formatRate(merchant.default_rate)
+
+  // New taxonomy
+  const newTopCats = merchant.new_top_categories
+    ? merchant.new_top_categories.split(',').map(s => s.trim()).filter(Boolean)
+    : []
+  const newSubCats = merchant.new_subcategories
+    ? merchant.new_subcategories.split(',').map(s => s.trim()).filter(Boolean)
+    : []
+  const occasionTags = merchant.occasion_tags
+    ? merchant.occasion_tags.split(',').map(s => s.trim()).filter(Boolean)
+    : []
+  const audienceTags = merchant.audience_tags
+    ? merchant.audience_tags.split(',').map(s => s.trim()).filter(Boolean)
+    : []
+  const bizTags = merchant.business_model_tags
+    ? merchant.business_model_tags.split(',').map(s => s.trim()).filter(Boolean)
+    : []
+
+  // Legacy tag pills (occasion/seasonal/audience from old system)
+  const legacyTags = merchant.tags
+    ? merchant.tags.split(',').map(entry => { const [name, type] = entry.split('|'); return name ? { name, type } : null }).filter(Boolean)
+    : []
 
   return (
     <div className="card" onClick={onClick} role="button" tabIndex={0}
@@ -39,20 +57,30 @@ function MerchantCard({ merchant, onClick }) {
           {merchant.url.replace(/^https?:\/\//, '')}
         </a>
       )}
-      <div className="categories">
-        {cats.length > 0
-          ? cats.map(cat => (
-              <span key={cat} className={`tag${cat === primary ? ' primary' : ''}`}>{cat}</span>
-            ))
-          : <span className="no-categories">No categories</span>
-        }
-      </div>
-      {merchant.tags && (
+
+      {/* New taxonomy categories */}
+      {newSubCats.length > 0 ? (
+        <div className="categories">
+          {newTopCats.map(cat => (
+            <span key={cat} className="tag new-top-cat">{cat}</span>
+          ))}
+          {newSubCats.map(sub => (
+            <span key={sub} className="tag new-sub-cat">{sub}</span>
+          ))}
+        </div>
+      ) : (
+        <div className="categories">
+          <span className="no-categories">No category assigned</span>
+        </div>
+      )}
+
+      {/* New taxonomy tag pills */}
+      {(occasionTags.length > 0 || audienceTags.length > 0 || bizTags.length > 0 || legacyTags.length > 0) && (
         <div className="card-tags">
-          {merchant.tags.split(',').map(entry => {
-            const [name, type] = entry.split('|')
-            return name ? <span key={entry} className={`tag-pill ${type}`}>{name}</span> : null
-          })}
+          {occasionTags.map(t => <span key={t} className="tag-pill occasion">{t}</span>)}
+          {audienceTags.map(t => <span key={t} className="tag-pill audience">{t}</span>)}
+          {bizTags.map(t => <span key={t} className="tag-pill business-model">{t}</span>)}
+          {legacyTags.map(t => <span key={t.name} className={`tag-pill ${t.type}`}>{t.name}</span>)}
         </div>
       )}
       <span className="card-cta">Click to view &amp; edit →</span>

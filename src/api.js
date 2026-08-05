@@ -77,6 +77,78 @@ export async function saveMerchantTags(merchantId, tagIds) {
   return res.json()
 }
 
+// ── New taxonomy ──────────────────────────────────────────────────────────────
+
+export async function fetchCategoryTop() {
+  const res = await fetch('/api/category-top')
+  if (!res.ok) throw new Error('Failed to load top categories')
+  return res.json()
+}
+
+export async function fetchSubcategories() {
+  const res = await fetch('/api/subcategories')
+  if (!res.ok) throw new Error('Failed to load subcategories')
+  return res.json()
+}
+
+export async function fetchOccasionTags() {
+  const res = await fetch('/api/occasion-tags')
+  if (!res.ok) throw new Error('Failed to load occasion tags')
+  return res.json()
+}
+
+export async function fetchAudienceTags() {
+  const res = await fetch('/api/audience-tags')
+  if (!res.ok) throw new Error('Failed to load audience tags')
+  return res.json()
+}
+
+export async function fetchBusinessModelTags() {
+  const res = await fetch('/api/business-model-tags')
+  if (!res.ok) throw new Error('Failed to load business model tags')
+  return res.json()
+}
+
+export async function saveMerchantSubcategories(merchantId, subcategoryIds) {
+  const res = await fetch(`/api/merchants/${merchantId}/subcategories`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subcategory_ids: subcategoryIds }),
+  })
+  if (!res.ok) throw new Error('Failed to save subcategories')
+  return res.json()
+}
+
+export async function saveMerchantOccasionTags(merchantId, tagIds) {
+  const res = await fetch(`/api/merchants/${merchantId}/occasion-tags`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tag_ids: tagIds }),
+  })
+  if (!res.ok) throw new Error('Failed to save occasion tags')
+  return res.json()
+}
+
+export async function saveMerchantAudienceTags(merchantId, tagIds) {
+  const res = await fetch(`/api/merchants/${merchantId}/audience-tags`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tag_ids: tagIds }),
+  })
+  if (!res.ok) throw new Error('Failed to save audience tags')
+  return res.json()
+}
+
+export async function saveMerchantBusinessModelTags(merchantId, tagIds) {
+  const res = await fetch(`/api/merchants/${merchantId}/business-model-tags`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tag_ids: tagIds }),
+  })
+  if (!res.ok) throw new Error('Failed to save business model tags')
+  return res.json()
+}
+
 // ── Categories ────────────────────────────────────────────────────────────────
 
 export async function saveCategories(merchantId, categories, primaryCategory) {

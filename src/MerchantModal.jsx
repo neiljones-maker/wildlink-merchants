@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
-import { saveCategories, fetchCategories, fetchTags, saveMerchantTags } from './api'
+import {
+  saveCategories, fetchCategories, fetchTags, saveMerchantTags,
+  fetchSubcategories, fetchOccasionTags, fetchAudienceTags, fetchBusinessModelTags,
+  saveMerchantSubcategories, saveMerchantOccasionTags, saveMerchantAudienceTags, saveMerchantBusinessModelTags,
+} from './api'
 import {
   DndContext,
   closestCenter,
@@ -17,7 +21,8 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-const TAG_TYPES = ['occasion', 'seasonal', 'audience']
+const LEGACY_TAG_TYPES = ['occasion', 'seasonal', 'audience']
+const NEW_TAG_SECTIONS = ['occasion', 'audience', 'business-model']
 
 function SortableTag({ id, isPrimary, onRemove, onSetPrimary }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
@@ -55,9 +60,21 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
   const [addCatValue, setAddCatValue] = useState('')
   const [allCategoryNames, setAllCategoryNames] = useState([])
 
+  // Legacy tags
   const [selectedTagIds, setSelectedTagIds] = useState(new Set())
   const [allTags, setAllTags] = useState([])
   const [addTagType, setAddTagType] = useState('occasion')
+
+  // New taxonomy
+  const [allSubcategories, setAllSubcategories] = useState([])
+  const [selectedSubcategoryIds, setSelectedSubcategoryIds] = useState(new Set())
+  const [allOccasionTags, setAllOccasionTags] = useState([])
+  const [allAudienceTags, setAllAudienceTags] = useState([])
+  const [allBizTags, setAllBizTags] = useState([])
+  const [selectedOccasionIds, setSelectedOccasionIds] = useState(new Set())
+  const [selectedAudienceIds, setSelectedAudienceIds] = useState(new Set())
+  const [selectedBizIds, setSelectedBizIds] = useState(new Set())
+  const [newTagSection, setNewTagSection] = useState('occasion')
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
@@ -66,6 +83,10 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
   useEffect(() => {
     fetchCategories().then(setAllCategoryNames).catch(() => {})
     fetchTags().then(setAllTags).catch(() => {})
+    fetchSubcategories().then(setAllSubcategories).catch(() => {})
+    fetchOccasionTags().then(setAllOccasionTags).catch(() => {})
+    fetchAudienceTags().then(setAllAudienceTags).catch(() => {})
+    fetchBusinessModelTags().then(setAllBizTags).catch(() => {})
   }, [])
 
   // Populate from merchant data when modal opens
@@ -77,7 +98,7 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
     setCategories(cats)
     setPrimaryCategory(merchant.primary_category?.trim() || '')
 
-    // Parse tags from the "name|type,name|type" string
+    // Parse legacy tags from the "name|type,name|type" string
     const tagSet = new Set()
     if (merchant.tags) {
       merchant.tags.split(',').forEach(entry => {
@@ -87,7 +108,17 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
       })
     }
     setSelectedTagIds(tagSet)
-  }, [merchant, allTags])
+
+    // Parse new taxonomy from comma-separated name strings
+    const parseNames = (str, list) => {
+      const names = str ? str.split(',').map(s => s.trim()).filter(Boolean) : []
+      return new Set(list.filter(t => names.includes(t.name)).map(t => t.id))
+    }
+    setSelectedSubcategoryIds(parseNames(merchant.new_subcategories, allSubcategories))
+    setSelectedOccasionIds(parseNames(merchant.occasion_tags, allOccasionTags))
+    setSelectedAudienceIds(parseNames(merchant.audience_tags, allAudienceTags))
+    setSelectedBizIds(parseNames(merchant.business_model_tags, allBizTags))
+  }, [merchant, allTags, allSubcategories, allOccasionTags, allAudienceTags, allBizTags])
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -128,10 +159,26 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
     })
   }
 
-  const tagsByType = TAG_TYPES.map(type => ({
+  function toggleSet(setter, id) {
+    setter(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const tagsByType = LEGACY_TAG_TYPES.map(type => ({
     type,
     tags: allTags.filter(t => t.type === type),
   }))
+
+  // Group subcategories by top category for display
+  const subcatsByTop = allSubcategories.reduce((acc, s) => {
+    const key = s.top_category_name
+    if (!acc[key]) acc[key] = []
+    acc[key].push(s)
+    return acc
+  }, {})
 
   // ── Save ──
   async function handleSave() {
@@ -141,17 +188,32 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
       await Promise.all([
         saveCategories(merchant.id, categories, primaryCategory),
         saveMerchantTags(merchant.id, [...selectedTagIds]),
+        saveMerchantSubcategories(merchant.id, [...selectedSubcategoryIds]),
+        saveMerchantOccasionTags(merchant.id, [...selectedOccasionIds]),
+        saveMerchantAudienceTags(merchant.id, [...selectedAudienceIds]),
+        saveMerchantBusinessModelTags(merchant.id, [...selectedBizIds]),
       ])
 
-      // Rebuild tags string for the card
+      // Rebuild denormalized strings for the card
       const assignedTags = allTags.filter(t => selectedTagIds.has(t.id))
       const tagsStr = assignedTags.map(t => `${t.name}|${t.type}`).join(',')
+      const assignedSubs = allSubcategories.filter(s => selectedSubcategoryIds.has(s.id))
+      const subNames = assignedSubs.map(s => s.name).join(',')
+      const topNames = [...new Set(assignedSubs.map(s => s.top_category_name))].join(',')
+      const occNames = allOccasionTags.filter(t => selectedOccasionIds.has(t.id)).map(t => t.name).join(',')
+      const audNames = allAudienceTags.filter(t => selectedAudienceIds.has(t.id)).map(t => t.name).join(',')
+      const bizNames = allBizTags.filter(t => selectedBizIds.has(t.id)).map(t => t.name).join(',')
 
       onSave({
         ...merchant,
         categories: categories.join(','),
         primary_category: primaryCategory,
         tags: tagsStr,
+        new_subcategories: subNames,
+        new_top_categories: topNames,
+        occasion_tags: occNames,
+        audience_tags: audNames,
+        business_model_tags: bizNames,
       })
       onClose()
     } catch (err) {
@@ -236,14 +298,105 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
             </div>
           </div>
 
-          {/* Tags */}
+          {/* New Taxonomy — Subcategories */}
           <div className="modal-section">
             <div className="section-header">
-              <h3>Tags</h3>
-              <span className="section-hint">Toggle to assign · manage all tags in Tag Manager</span>
+              <h3>Category</h3>
+              <span className="section-hint">New taxonomy — select one or more subcategories</span>
+            </div>
+            {Object.entries(subcatsByTop).map(([topName, subs]) => (
+              <div key={topName} className="subcat-group">
+                <div className="subcat-group-label">{topName}</div>
+                <div className="tag-toggle-grid">
+                  {subs.map(s => (
+                    <button
+                      key={s.id}
+                      className={`tag-toggle new-sub-cat${selectedSubcategoryIds.has(s.id) ? ' selected' : ''}`}
+                      onClick={() => toggleSet(setSelectedSubcategoryIds, s.id)}
+                    >
+                      {selectedSubcategoryIds.has(s.id) && <span className="check">✓</span>}
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* New Taxonomy — Occasion / Audience / Business Model Tags */}
+          <div className="modal-section">
+            <div className="section-header">
+              <h3>New Tags</h3>
+              <span className="section-hint">Occasion · Audience · Business Model</span>
             </div>
             <div className="tag-type-tabs">
-              {TAG_TYPES.map(type => (
+              {[
+                { key: 'occasion', label: 'Occasion', list: allOccasionTags, sel: selectedOccasionIds },
+                { key: 'audience', label: 'Audience', list: allAudienceTags, sel: selectedAudienceIds },
+                { key: 'business-model', label: 'Business Model', list: allBizTags, sel: selectedBizIds },
+              ].map(({ key, label, sel }) => (
+                <button
+                  key={key}
+                  className={`tag-type-tab ${key}${newTagSection === key ? ' active' : ''}`}
+                  onClick={() => setNewTagSection(key)}
+                >
+                  {label}
+                  {' '}<span className="tab-count">{sel.size || ''}</span>
+                </button>
+              ))}
+            </div>
+            {newTagSection === 'occasion' && (
+              <div className="tag-toggle-grid">
+                {allOccasionTags.map(t => (
+                  <button
+                    key={t.id}
+                    className={`tag-toggle occasion${selectedOccasionIds.has(t.id) ? ' selected' : ''}`}
+                    onClick={() => toggleSet(setSelectedOccasionIds, t.id)}
+                  >
+                    {selectedOccasionIds.has(t.id) && <span className="check">✓</span>}
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            {newTagSection === 'audience' && (
+              <div className="tag-toggle-grid">
+                {allAudienceTags.map(t => (
+                  <button
+                    key={t.id}
+                    className={`tag-toggle audience${selectedAudienceIds.has(t.id) ? ' selected' : ''}`}
+                    onClick={() => toggleSet(setSelectedAudienceIds, t.id)}
+                  >
+                    {selectedAudienceIds.has(t.id) && <span className="check">✓</span>}
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            {newTagSection === 'business-model' && (
+              <div className="tag-toggle-grid">
+                {allBizTags.map(t => (
+                  <button
+                    key={t.id}
+                    className={`tag-toggle business-model${selectedBizIds.has(t.id) ? ' selected' : ''}`}
+                    onClick={() => toggleSet(setSelectedBizIds, t.id)}
+                  >
+                    {selectedBizIds.has(t.id) && <span className="check">✓</span>}
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Legacy Tags */}
+          <div className="modal-section">
+            <div className="section-header">
+              <h3>Legacy Tags</h3>
+              <span className="section-hint">Old system · manage in Tag Manager</span>
+            </div>
+            <div className="tag-type-tabs">
+              {LEGACY_TAG_TYPES.map(type => (
                 <button
                   key={type}
                   className={`tag-type-tab ${type}${addTagType === type ? ' active' : ''}`}
