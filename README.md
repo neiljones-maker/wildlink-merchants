@@ -13,36 +13,45 @@ A local web app for browsing, searching, and managing the Wildlink merchant cata
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) v18 or later
-- A copy of the SQLite database file (`db_snapshot.sqlite`)
+- [Git LFS](https://git-lfs.com/) — required to download the database file
 
-> The database is not included in this repo (53 MB). You need to obtain `db_snapshot.sqlite` separately and place it in the `data/` folder as described below.
+> The database (`data/db.sqlite`, 53 MB) is stored in this repo via Git LFS. You must have Git LFS installed before cloning, otherwise the file will be a placeholder pointer and the app won't start.
 
 ## Setup
 
-### 1. Clone the repo
+### 1. Install Git LFS (once per machine)
+
+```bash
+# macOS
+brew install git-lfs
+
+# Windows
+# Download the installer from https://git-lfs.com
+
+# Linux
+sudo apt install git-lfs   # Debian/Ubuntu
+```
+
+Then register it with git:
+
+```bash
+git lfs install
+```
+
+### 2. Clone the repo
 
 ```bash
 git clone https://github.com/neiljones-maker/wildlink-merchants.git
 cd wildlink-merchants
 ```
 
-### 2. Install dependencies
+Git LFS will automatically download `data/db.sqlite` during the clone.
+
+### 3. Install dependencies
 
 ```bash
 npm install
 ```
-
-### 3. Add the database
-
-Place your copy of `db_snapshot.sqlite` in the `data/` directory:
-
-```
-wildlink-merchants/
-└── data/
-    └── db_snapshot.sqlite   ← put it here
-```
-
-The `data/` folder is gitignored so the file will never be committed.
 
 ### 4. Run the category consolidation migration (first time only)
 
