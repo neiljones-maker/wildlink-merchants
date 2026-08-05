@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { saveCategories } from './api'
 import {
   DndContext,
   closestCenter,
@@ -72,6 +73,8 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
   const [categories, setCategories] = useState([])
   const [primaryCategory, setPrimaryCategory] = useState('')
   const [addValue, setAddValue] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(null)
 
   useEffect(() => {
     if (!merchant) return
@@ -113,13 +116,22 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
     setAddValue('')
   }
 
-  function handleSave() {
-    onSave({
-      ...merchant,
-      categories: categories.join(','),
-      primary_category: primaryCategory,
-    })
-    onClose()
+  async function handleSave() {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await saveCategories(merchant.id, categories, primaryCategory)
+      onSave({
+        ...merchant,
+        categories: categories.join(','),
+        primary_category: primaryCategory,
+      })
+      onClose()
+    } catch (err) {
+      setSaveError(err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const rate = (r) => r && r !== 0 ? `${(r * 100).toFixed(2)}%` : '—'
@@ -210,8 +222,11 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
         </div>
 
         <div className="modal-footer">
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave}>Save changes</button>
+          {saveError && <span className="save-error">{saveError}</span>}
+          <button className="btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
-import merchantsJson from './merchants.json'
+import { useState, useMemo, useEffect } from 'react'
 import MerchantModal from './MerchantModal'
+import { fetchMerchants } from './api'
 
 function buildCategoryList(data) {
   return [...new Set(
@@ -49,10 +49,18 @@ function MerchantCard({ merchant, onClick }) {
 }
 
 export default function App() {
-  const [merchantData, setMerchantData] = useState(() => merchantsJson)
+  const [merchantData, setMerchantData] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
   const [activeMerchant, setActiveMerchant] = useState(null)
+
+  useEffect(() => {
+    fetchMerchants()
+      .then(data => { setMerchantData(data); setLoading(false) })
+      .catch(err => { setError(err.message); setLoading(false) })
+  }, [])
 
   const allCategories = useMemo(() => buildCategoryList(merchantData), [merchantData])
 
@@ -67,7 +75,11 @@ export default function App() {
 
   function handleSave(updated) {
     setMerchantData(prev => prev.map(m => m.id === updated.id ? updated : m))
+    if (activeMerchant?.id === updated.id) setActiveMerchant(updated)
   }
+
+  if (loading) return <div className="loading">Loading merchants…</div>
+  if (error) return <div className="loading error">Error: {error}</div>
 
   return (
     <>

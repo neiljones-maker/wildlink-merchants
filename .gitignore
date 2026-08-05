@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Database (too large for git; copy db_snapshot.sqlite to data/db.sqlite to run locally)
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
