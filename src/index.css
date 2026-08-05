@@ -874,10 +874,6 @@ body {
 
 .tag-group-body {
   padding: 8px 0;
-  max-height: calc(100vh - 260px);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #eee transparent;
 }
 
 .tag-row {
