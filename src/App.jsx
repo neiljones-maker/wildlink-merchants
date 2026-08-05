@@ -1,17 +1,19 @@
 import { useState, useMemo } from 'react'
-import merchants from './merchants.json'
+import merchantsJson from './merchants.json'
+import MerchantModal from './MerchantModal'
 
-const ALL_CATEGORIES = [...new Set(
-  merchants.flatMap(m => m.categories ? m.categories.split(',').map(c => c.trim()) : [])
-)].sort()
+function buildCategoryList(data) {
+  return [...new Set(
+    data.flatMap(m => m.categories ? m.categories.split(',').map(c => c.trim()) : [])
+  )].sort()
+}
 
 function formatRate(rate) {
   if (!rate || rate === 0) return null
-  const pct = (rate * 100).toFixed(1)
-  return `${pct}%`
+  return `${(rate * 100).toFixed(1)}%`
 }
 
-function MerchantCard({ merchant }) {
+function MerchantCard({ merchant, onClick }) {
   const cats = merchant.categories
     ? merchant.categories.split(',').map(c => c.trim()).filter(Boolean)
     : []
@@ -19,13 +21,15 @@ function MerchantCard({ merchant }) {
   const rate = formatRate(merchant.default_rate)
 
   return (
-    <div className="card">
+    <div className="card" onClick={onClick} role="button" tabIndex={0}
+      onKeyDown={e => e.key === 'Enter' && onClick()}>
       <div className="card-header">
         <span className="merchant-name">{merchant.name}</span>
         {rate && <span className="rate-badge">{rate}</span>}
       </div>
       {merchant.url && (
-        <a className="merchant-url" href={merchant.url} target="_blank" rel="noopener noreferrer">
+        <a className="merchant-url" href={merchant.url} target="_blank" rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}>
           {merchant.url.replace(/^https?:\/\//, '')}
         </a>
       )}
@@ -39,28 +43,37 @@ function MerchantCard({ merchant }) {
           : <span className="no-categories">No categories</span>
         }
       </div>
+      <span className="card-cta">Click to view &amp; edit →</span>
     </div>
   )
 }
 
 export default function App() {
+  const [merchantData, setMerchantData] = useState(() => merchantsJson)
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
+  const [activeMerchant, setActiveMerchant] = useState(null)
+
+  const allCategories = useMemo(() => buildCategoryList(merchantData), [merchantData])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return merchants.filter(m => {
+    return merchantData.filter(m => {
       const matchesSearch = !q || m.name.toLowerCase().includes(q) || (m.url || '').toLowerCase().includes(q)
       const matchesCat = !selectedCategory || (m.categories || '').split(',').map(c => c.trim()).includes(selectedCategory)
       return matchesSearch && matchesCat
     })
-  }, [search, selectedCategory])
+  }, [merchantData, search, selectedCategory])
+
+  function handleSave(updated) {
+    setMerchantData(prev => prev.map(m => m.id === updated.id ? updated : m))
+  }
 
   return (
     <>
       <div className="header">
         <h1>Merchant Browser</h1>
-        <p>{merchants.length.toLocaleString()} active merchants</p>
+        <p>{merchantData.length.toLocaleString()} active merchants</p>
       </div>
 
       <div className="controls">
@@ -77,7 +90,7 @@ export default function App() {
           onChange={e => setSelectedCategory(e.target.value)}
         >
           <option value="">All categories</option>
-          {ALL_CATEGORIES.map(cat => (
+          {allCategories.map(cat => (
             <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
@@ -88,7 +101,13 @@ export default function App() {
 
       <div className="grid">
         {filtered.length > 0
-          ? filtered.map(m => <MerchantCard key={m.id} merchant={m} />)
+          ? filtered.map(m => (
+              <MerchantCard
+                key={m.id}
+                merchant={m}
+                onClick={() => setActiveMerchant(m)}
+              />
+            ))
           : (
             <div className="empty-state">
               <h2>No merchants found</h2>
@@ -97,6 +116,12 @@ export default function App() {
           )
         }
       </div>
+
+      <MerchantModal
+        merchant={activeMerchant}
+        onClose={() => setActiveMerchant(null)}
+        onSave={handleSave}
+      />
     </>
   )
 }
