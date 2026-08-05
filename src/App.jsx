@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import MerchantModal from './MerchantModal'
 import CategoryManager from './CategoryManager'
+import TagManager from './TagManager'
 import Nav from './Nav'
 import { fetchMerchants } from './api'
 
@@ -41,13 +42,19 @@ function MerchantCard({ merchant, onClick }) {
       <div className="categories">
         {cats.length > 0
           ? cats.map(cat => (
-              <span key={cat} className={`tag${cat === primary ? ' primary' : ''}`}>
-                {cat}
-              </span>
+              <span key={cat} className={`tag${cat === primary ? ' primary' : ''}`}>{cat}</span>
             ))
           : <span className="no-categories">No categories</span>
         }
       </div>
+      {merchant.tags && (
+        <div className="card-tags">
+          {merchant.tags.split(',').map(entry => {
+            const [name, type] = entry.split('|')
+            return name ? <span key={entry} className={`tag-pill ${type}`}>{name}</span> : null
+          })}
+        </div>
+      )}
       <span className="card-cta">Click to view &amp; edit →</span>
     </div>
   )
@@ -178,6 +185,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<MerchantBrowser />} />
           <Route path="/categories" element={<CategoryManager />} />
+          <Route path="/tags" element={<TagManager />} />
         </Routes>
       </main>
     </>

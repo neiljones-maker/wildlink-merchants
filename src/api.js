@@ -32,6 +32,53 @@ export async function deleteCategory(id) {
   return res.json()
 }
 
+// ── Tags ──────────────────────────────────────────────────────────────────────
+
+export async function fetchTags(type) {
+  const url = type ? `/api/tags?type=${encodeURIComponent(type)}` : '/api/tags'
+  const res = await fetch(url)
+  if (!res.ok) throw new Error('Failed to load tags')
+  return res.json()
+}
+
+export async function createTag(name, type) {
+  const res = await fetch('/api/tags', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, type }),
+  })
+  if (!res.ok) throw new Error('Failed to create tag')
+  return res.json()
+}
+
+export async function renameTag(id, name) {
+  const res = await fetch(`/api/tags/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  if (!res.ok) throw new Error('Failed to rename tag')
+  return res.json()
+}
+
+export async function deleteTag(id) {
+  const res = await fetch(`/api/tags/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('Failed to delete tag')
+  return res.json()
+}
+
+export async function saveMerchantTags(merchantId, tagIds) {
+  const res = await fetch(`/api/merchants/${merchantId}/tags`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tag_ids: tagIds }),
+  })
+  if (!res.ok) throw new Error('Failed to save tags')
+  return res.json()
+}
+
+// ── Categories ────────────────────────────────────────────────────────────────
+
 export async function saveCategories(merchantId, categories, primaryCategory) {
   const res = await fetch(`/api/merchants/${merchantId}/categories`, {
     method: 'PUT',

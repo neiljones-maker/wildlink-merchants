@@ -16,7 +16,7 @@ try {
 const app = express()
 app.use(express.json())
 
-// GET /api/merchants — all active merchants with their categories
+// GET /api/merchants — all active merchants with categories and tags
 app.get('/api/merchants', (_req, res) => {
   // CTEs keep networks and categories independent so a merchant on N networks
   // doesn't produce N copies of each category row in the result set.
@@ -58,11 +58,19 @@ app.get('/api/merchants', (_req, res) => {
       JOIN category c ON c.id = mc.category_id
       GROUP BY mc.merchant_id
       ORDER BY mc.sort_order, mc.rowid
+    ),
+    tgs AS (
+      SELECT mt.merchant_id,
+        GROUP_CONCAT(t.name || '|' || t.type, ',') AS tags
+      FROM merchant_tag mt
+      JOIN tag t ON t.id = mt.tag_id AND t.disabled = 'f'
+      GROUP BY mt.merchant_id
     )
-    SELECT b.*, ne.networks, ca.categories, ca.primary_category
+    SELECT b.*, ne.networks, ca.categories, ca.primary_category, tg.tags
     FROM base b
     LEFT JOIN nets ne ON ne.merchant_id = b.id
     LEFT JOIN cats ca ON ca.merchant_id = b.id
+    LEFT JOIN tgs tg ON tg.merchant_id = b.id
     ORDER BY b.name COLLATE NOCASE
   `).all()
 
@@ -114,6 +122,69 @@ app.delete('/api/categories/:id', (req, res) => {
     db.prepare(`DELETE FROM merchant_category WHERE category_id = ?`).run(id)
     db.prepare(`UPDATE category SET parent_id = NULL WHERE parent_id = ?`).run(id)
     db.prepare(`UPDATE category SET disabled = 't', modified_date = datetime('now') WHERE id = ?`).run(id)
+  })()
+  res.json({ ok: true })
+})
+
+// ── Tags ─────────────────────────────────────────────────────────────────────
+
+// GET /api/tags — all active tags, optionally filtered by ?type=
+app.get('/api/tags', (req, res) => {
+  const { type } = req.query
+  const rows = type
+    ? db.prepare(`SELECT * FROM tag WHERE disabled='f' AND type=? ORDER BY name`).all(type)
+    : db.prepare(`SELECT * FROM tag WHERE disabled='f' ORDER BY type, name`).all()
+  res.json(rows)
+})
+
+// POST /api/tags — create a new tag
+app.post('/api/tags', (req, res) => {
+  const { name, type } = req.body
+  if (!name || !type) return res.status(400).json({ error: 'name and type required' })
+  const now = new Date().toISOString()
+  const id = randomUUID()
+  db.prepare(`INSERT INTO tag (id, name, type, created_date, modified_date) VALUES (?,?,?,?,?)`).run(id, name.trim(), type, now, now)
+  res.json({ ok: true, id })
+})
+
+// PUT /api/tags/:id — rename a tag
+app.put('/api/tags/:id', (req, res) => {
+  const { name } = req.body
+  if (!name) return res.status(400).json({ error: 'name required' })
+  db.prepare(`UPDATE tag SET name=?, modified_date=datetime('now') WHERE id=?`).run(name.trim(), req.params.id)
+  res.json({ ok: true })
+})
+
+// DELETE /api/tags/:id — disable tag and remove all merchant assignments
+app.delete('/api/tags/:id', (req, res) => {
+  db.transaction(() => {
+    db.prepare(`DELETE FROM merchant_tag WHERE tag_id=?`).run(req.params.id)
+    db.prepare(`UPDATE tag SET disabled='t', modified_date=datetime('now') WHERE id=?`).run(req.params.id)
+  })()
+  res.json({ ok: true })
+})
+
+// GET /api/merchants/:id/tags — tags assigned to a merchant
+app.get('/api/merchants/:id/tags', (req, res) => {
+  const rows = db.prepare(`
+    SELECT t.id, t.name, t.type
+    FROM merchant_tag mt
+    JOIN tag t ON t.id = mt.tag_id AND t.disabled = 'f'
+    WHERE mt.merchant_id = ?
+    ORDER BY t.type, t.name
+  `).all(req.params.id)
+  res.json(rows)
+})
+
+// PUT /api/merchants/:id/tags — replace all tag assignments for a merchant
+app.put('/api/merchants/:id/tags', (req, res) => {
+  const { tag_ids } = req.body
+  if (!Array.isArray(tag_ids)) return res.status(400).json({ error: 'tag_ids must be an array' })
+  const now = new Date().toISOString()
+  db.transaction(() => {
+    db.prepare(`DELETE FROM merchant_tag WHERE merchant_id=?`).run(req.params.id)
+    const insert = db.prepare(`INSERT INTO merchant_tag (id, merchant_id, tag_id, created_date, modified_date) VALUES (?,?,?,?,?)`)
+    for (const tag_id of tag_ids) insert.run(randomUUID(), req.params.id, tag_id, now, now)
   })()
   res.json({ ok: true })
 })

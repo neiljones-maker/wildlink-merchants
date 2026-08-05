@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { saveCategories, fetchCategories } from './api'
+import { saveCategories, fetchCategories, fetchTags, saveMerchantTags } from './api'
 import {
   DndContext,
   closestCenter,
@@ -17,33 +17,16 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+const TAG_TYPES = ['occasion', 'seasonal', 'audience', 'discount']
+
 function SortableTag({ id, isPrimary, onRemove, onSetPrimary }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    cursor: 'grab',
-  }
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, cursor: 'grab' }
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`modal-tag${isPrimary ? ' primary' : ''}`}
-    >
-      <span
-        {...attributes}
-        {...listeners}
-        className="drag-handle"
-        title="Drag to reorder"
-      >⠿</span>
-      <button
-        className="tag-primary-btn"
-        onClick={onSetPrimary}
-        title={isPrimary ? 'Primary category' : 'Set as primary'}
-      >
+    <div ref={setNodeRef} style={style} className={`modal-tag${isPrimary ? ' primary' : ''}`}>
+      <span {...attributes} {...listeners} className="drag-handle" title="Drag to reorder">⠿</span>
+      <button className="tag-primary-btn" onClick={onSetPrimary} title={isPrimary ? 'Primary category' : 'Set as primary'}>
         {id}
       </button>
       <button className="tag-remove-btn" onClick={onRemove} title="Remove category">×</button>
@@ -69,15 +52,23 @@ function Flag({ label, value }) {
 export default function MerchantModal({ merchant, onClose, onSave }) {
   const [categories, setCategories] = useState([])
   const [primaryCategory, setPrimaryCategory] = useState('')
-  const [addValue, setAddValue] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState(null)
+  const [addCatValue, setAddCatValue] = useState('')
   const [allCategoryNames, setAllCategoryNames] = useState([])
 
+  const [selectedTagIds, setSelectedTagIds] = useState(new Set())
+  const [allTags, setAllTags] = useState([])
+  const [addTagType, setAddTagType] = useState('occasion')
+
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(null)
+
+  // Load global lists once
   useEffect(() => {
     fetchCategories().then(setAllCategoryNames).catch(() => {})
+    fetchTags().then(setAllTags).catch(() => {})
   }, [])
 
+  // Populate from merchant data when modal opens
   useEffect(() => {
     if (!merchant) return
     const cats = merchant.categories
@@ -85,7 +76,18 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
       : []
     setCategories(cats)
     setPrimaryCategory(merchant.primary_category?.trim() || '')
-  }, [merchant])
+
+    // Parse tags from the "name|type,name|type" string
+    const tagSet = new Set()
+    if (merchant.tags) {
+      merchant.tags.split(',').forEach(entry => {
+        const [name] = entry.split('|')
+        const tag = allTags.find(t => t.name === name.trim())
+        if (tag) tagSet.add(tag.id)
+      })
+    }
+    setSelectedTagIds(tagSet)
+  }, [merchant, allTags])
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -94,6 +96,7 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
 
   if (!merchant) return null
 
+  // ── Category helpers ──
   function handleDragEnd(event) {
     const { active, over } = event
     if (active.id !== over?.id) {
@@ -107,26 +110,48 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
 
   function removeCategory(cat) {
     setCategories(prev => prev.filter(c => c !== cat))
-    if (primaryCategory === cat) {
-      setPrimaryCategory('')
-    }
+    if (primaryCategory === cat) setPrimaryCategory('')
   }
 
   function addCategory() {
-    if (!addValue || categories.includes(addValue)) return
-    setCategories(prev => [...prev, addValue])
-    setAddValue('')
+    if (!addCatValue || categories.includes(addCatValue)) return
+    setCategories(prev => [...prev, addCatValue])
+    setAddCatValue('')
   }
 
+  // ── Tag helpers ──
+  function toggleTag(id) {
+    setSelectedTagIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const tagsByType = TAG_TYPES.map(type => ({
+    type,
+    tags: allTags.filter(t => t.type === type),
+  }))
+
+  // ── Save ──
   async function handleSave() {
     setSaving(true)
     setSaveError(null)
     try {
-      await saveCategories(merchant.id, categories, primaryCategory)
+      await Promise.all([
+        saveCategories(merchant.id, categories, primaryCategory),
+        saveMerchantTags(merchant.id, [...selectedTagIds]),
+      ])
+
+      // Rebuild tags string for the card
+      const assignedTags = allTags.filter(t => selectedTagIds.has(t.id))
+      const tagsStr = assignedTags.map(t => `${t.name}|${t.type}`).join(',')
+
       onSave({
         ...merchant,
         categories: categories.join(','),
         primary_category: primaryCategory,
+        tags: tagsStr,
       })
       onClose()
     } catch (err) {
@@ -137,7 +162,6 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
   }
 
   const rate = (r) => r && r !== 0 ? `${(r * 100).toFixed(2)}%` : '—'
-
   const availableToAdd = allCategoryNames.filter(c => !categories.includes(c))
 
   return (
@@ -156,6 +180,7 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
         </div>
 
         <div className="modal-body">
+          {/* Details */}
           <div className="modal-section">
             <h3>Details</h3>
             <div className="detail-grid">
@@ -177,12 +202,12 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
             </div>
           </div>
 
+          {/* Categories */}
           <div className="modal-section">
             <div className="section-header">
               <h3>Categories</h3>
               <span className="section-hint">Drag to reorder · Click name to set primary</span>
             </div>
-
             {categories.length > 0 ? (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={categories} strategy={horizontalListSortingStrategy}>
@@ -202,23 +227,47 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
             ) : (
               <p className="no-cats-msg">No categories assigned.</p>
             )}
-
             <div className="add-category">
-              <select
-                className="category-select"
-                value={addValue}
-                onChange={e => setAddValue(e.target.value)}
-              >
+              <select className="category-select" value={addCatValue} onChange={e => setAddCatValue(e.target.value)}>
                 <option value="">Add a category...</option>
                 {availableToAdd.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
-              <button
-                className="add-btn"
-                onClick={addCategory}
-                disabled={!addValue}
-              >
-                Add
-              </button>
+              <button className="add-btn" onClick={addCategory} disabled={!addCatValue}>Add</button>
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div className="modal-section">
+            <div className="section-header">
+              <h3>Tags</h3>
+              <span className="section-hint">Toggle to assign · manage all tags in Tag Manager</span>
+            </div>
+            <div className="tag-type-tabs">
+              {TAG_TYPES.map(type => (
+                <button
+                  key={type}
+                  className={`tag-type-tab ${type}${addTagType === type ? ' active' : ''}`}
+                  onClick={() => setAddTagType(type)}
+                >
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                  {' '}
+                  <span className="tab-count">
+                    {allTags.filter(t => t.type === type && selectedTagIds.has(t.id)).length || ''}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="tag-toggle-grid">
+              {(tagsByType.find(g => g.type === addTagType)?.tags || []).map(tag => (
+                <button
+                  key={tag.id}
+                  className={`tag-toggle ${tag.type}${selectedTagIds.has(tag.id) ? ' selected' : ''}`}
+                  onClick={() => toggleTag(tag.id)}
+                >
+                  {selectedTagIds.has(tag.id) && <span className="check">✓</span>}
+                  {tag.name}
+                </button>
+              ))}
             </div>
           </div>
         </div>

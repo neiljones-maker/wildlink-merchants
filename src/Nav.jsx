@@ -11,6 +11,9 @@ export default function Nav() {
         <NavLink to="/categories" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
           Categories
         </NavLink>
+        <NavLink to="/tags" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+          Tags
+        </NavLink>
       </div>
     </nav>
   )
