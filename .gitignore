@@ -23,7 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Database (too large for git; copy db_snapshot.sqlite to data/db.sqlite to run locally)
-data/*.sqlite
+# SQLite WAL sidecar files (the main .sqlite is tracked via Git LFS)
 data/*.sqlite-shm
 data/*.sqlite-wal
