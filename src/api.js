@@ -4,6 +4,12 @@ export async function fetchMerchants() {
   return res.json()
 }
 
+export async function fetchCategories() {
+  const res = await fetch('/api/categories')
+  if (!res.ok) throw new Error('Failed to load categories')
+  return res.json()
+}
+
 export async function saveCategories(merchantId, categories, primaryCategory) {
   const res = await fetch(`/api/merchants/${merchantId}/categories`, {
     method: 'PUT',

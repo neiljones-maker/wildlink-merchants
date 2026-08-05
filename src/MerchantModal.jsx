@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { saveCategories } from './api'
+import { useState, useEffect } from 'react'
+import { saveCategories, fetchCategories } from './api'
 import {
   DndContext,
   closestCenter,
@@ -16,9 +16,6 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import allCategoriesRaw from './allCategories.json'
-
-const ALL_CATEGORY_NAMES = allCategoriesRaw.map(r => r.name).sort()
 
 function SortableTag({ id, isPrimary, onRemove, onSetPrimary }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
@@ -75,6 +72,11 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
   const [addValue, setAddValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
+  const [allCategoryNames, setAllCategoryNames] = useState([])
+
+  useEffect(() => {
+    fetchCategories().then(setAllCategoryNames).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!merchant) return
@@ -136,7 +138,7 @@ export default function MerchantModal({ merchant, onClose, onSave }) {
 
   const rate = (r) => r && r !== 0 ? `${(r * 100).toFixed(2)}%` : '—'
 
-  const availableToAdd = ALL_CATEGORY_NAMES.filter(c => !categories.includes(c))
+  const availableToAdd = allCategoryNames.filter(c => !categories.includes(c))
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>

@@ -52,6 +52,14 @@ app.get('/api/merchants', (_req, res) => {
   res.json(rows)
 })
 
+// GET /api/categories — all active (non-disabled) category names
+app.get('/api/categories', (_req, res) => {
+  const rows = db.prepare(`
+    SELECT name FROM category WHERE disabled = 'f' ORDER BY name
+  `).all()
+  res.json(rows.map(r => r.name))
+})
+
 // PUT /api/merchants/:id/categories
 // Body: { categories: string[], primary_category: string }
 app.put('/api/merchants/:id/categories', (req, res) => {
