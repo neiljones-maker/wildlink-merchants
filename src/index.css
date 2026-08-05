@@ -891,17 +891,67 @@ body {
   padding: 8px 16px;
 }
 
-.tag-row-actions {
+.tag-icon-actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   flex-shrink: 0;
-  align-items: center;
+  opacity: 0;
+  transition: opacity 0.12s;
 }
 
-.confirm-text {
+.tag-row:hover .tag-icon-actions { opacity: 1; }
+
+.icon-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #888;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+
+.icon-btn:hover { background: #f0f0f0; color: #333; }
+.icon-btn.save { color: #16a34a; }
+.icon-btn.save:hover { background: #f0fdf4; color: #15803d; }
+.icon-btn.remove { color: #aaa; }
+.icon-btn.remove:hover { background: #fef2f2; color: #dc2626; }
+.icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.tag-confirm-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px 8px;
+  background: #fef2f2;
+  border-top: 1px solid #fecaca;
   font-size: 0.78rem;
   color: #666;
 }
+
+.icon-confirm {
+  padding: 3px 10px;
+  border-radius: 5px;
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  font-size: 0.78rem;
+  cursor: pointer;
+  color: #444;
+}
+
+.icon-confirm.danger {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+
+.icon-confirm.danger:hover { background: #b91c1c; }
+.icon-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .tag-edit-input {
   flex: 1;
@@ -945,3 +995,5 @@ body {
   padding: 8px 16px;
   border-top: 1px solid #f0f0f0;
 }
+
+.add-tag-form .icon-btn { opacity: 1; }

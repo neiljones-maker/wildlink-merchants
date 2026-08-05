@@ -5,11 +5,10 @@ const TAG_TYPES = [
   { value: 'occasion', label: 'Occasion' },
   { value: 'seasonal', label: 'Seasonal' },
   { value: 'audience', label: 'Audience' },
-  { value: 'discount', label: 'Discount' },
 ]
 
 function TagRow({ tag, onRename, onDelete }) {
-  const [mode, setMode] = useState(null) // null | 'edit' | 'delete'
+  const [mode, setMode] = useState(null) // null | 'edit' | 'confirm'
   const [editName, setEditName] = useState(tag.name)
   const [busy, setBusy] = useState(false)
 
@@ -37,32 +36,38 @@ function TagRow({ tag, onRename, onDelete }) {
             className="tag-edit-input"
             value={editName}
             onChange={e => setEditName(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') setMode(null) }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleRename()
+              if (e.key === 'Escape') { setEditName(tag.name); setMode(null) }
+            }}
             autoFocus
           />
         ) : (
           <span className={`tag-pill ${tag.type}`}>{tag.name}</span>
         )}
-        <div className="tag-row-actions">
+
+        <div className="tag-icon-actions">
           {mode === 'edit' ? (
             <>
-              <button className="action-btn primary-text" onClick={handleRename} disabled={busy}>Save</button>
-              <button className="action-btn" onClick={() => { setEditName(tag.name); setMode(null) }}>Cancel</button>
-            </>
-          ) : mode === 'delete' ? (
-            <>
-              <span className="confirm-text">Remove this tag from all merchants?</span>
-              <button className="action-btn danger" onClick={handleDelete} disabled={busy}>Yes, remove</button>
-              <button className="action-btn" onClick={() => setMode(null)}>Cancel</button>
+              <button className="icon-btn save" onClick={handleRename} title="Save" disabled={busy}>✓</button>
+              <button className="icon-btn" onClick={() => { setEditName(tag.name); setMode(null) }} title="Cancel">✕</button>
             </>
           ) : (
             <>
-              <button className="action-btn" onClick={() => setMode('edit')}>Rename</button>
-              <button className="action-btn danger" onClick={() => setMode('delete')}>Remove</button>
+              <button className="icon-btn" onClick={() => setMode('edit')} title="Rename">✎</button>
+              <button className="icon-btn remove" onClick={() => setMode('confirm')} title="Remove">✕</button>
             </>
           )}
         </div>
       </div>
+
+      {mode === 'confirm' && (
+        <div className="tag-confirm-row">
+          <span>Remove from all merchants?</span>
+          <button className="icon-confirm danger" onClick={handleDelete} disabled={busy}>Yes</button>
+          <button className="icon-confirm" onClick={() => setMode(null)}>No</button>
+        </div>
+      )}
     </div>
   )
 }
@@ -96,8 +101,8 @@ function AddTagRow({ type, onAdd }) {
         onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setOpen(false) }}
         autoFocus
       />
-      <button className="action-btn primary-text" onClick={handleAdd} disabled={busy || !name.trim()}>Add</button>
-      <button className="action-btn" onClick={() => setOpen(false)}>Cancel</button>
+      <button className="icon-btn save" onClick={handleAdd} disabled={busy || !name.trim()} title="Add">✓</button>
+      <button className="icon-btn" onClick={() => setOpen(false)} title="Cancel">✕</button>
     </div>
   )
 }
@@ -113,25 +118,24 @@ export default function TagManager() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return q ? tags.filter(t => t.name.toLowerCase().includes(q)) : tags
+    return q ? tags.filter(t => t.type !== 'discount' && t.name.toLowerCase().includes(q))
+             : tags.filter(t => t.type !== 'discount')
   }, [tags, search])
 
-  const grouped = useMemo(() => {
-    return TAG_TYPES.map(({ value, label }) => ({
+  const grouped = useMemo(() => (
+    TAG_TYPES.map(({ value, label }) => ({
       type: value,
       label,
       tags: filtered.filter(t => t.type === value),
     }))
-  }, [filtered])
+  ), [filtered])
 
   function handleRename(id, name) {
     setTags(prev => prev.map(t => t.id === id ? { ...t, name } : t))
   }
-
   function handleDelete(id) {
     setTags(prev => prev.filter(t => t.id !== id))
   }
-
   function handleAdd(tag) {
     setTags(prev => [...prev, tag])
   }
@@ -142,7 +146,7 @@ export default function TagManager() {
     <>
       <div className="header">
         <h1>Tag Manager</h1>
-        <p>{tags.length} tags across {TAG_TYPES.length} types</p>
+        <p>{filtered.length} tags across {TAG_TYPES.length} types</p>
       </div>
 
       <div className="controls">
@@ -164,12 +168,7 @@ export default function TagManager() {
             </div>
             <div className="tag-group-body">
               {groupTags.map(tag => (
-                <TagRow
-                  key={tag.id}
-                  tag={tag}
-                  onRename={handleRename}
-                  onDelete={handleDelete}
-                />
+                <TagRow key={tag.id} tag={tag} onRename={handleRename} onDelete={handleDelete} />
               ))}
               {!search && <AddTagRow type={type} onAdd={handleAdd} />}
             </div>

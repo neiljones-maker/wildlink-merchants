@@ -17,7 +17,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-const TAG_TYPES = ['occasion', 'seasonal', 'audience', 'discount']
+const TAG_TYPES = ['occasion', 'seasonal', 'audience']
 
 function SortableTag({ id, isPrimary, onRemove, onSetPrimary }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
