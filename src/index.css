@@ -821,16 +821,27 @@ body {
 
 /* ── Tag Manager page ── */
 .tag-groups {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  display: flex;
+  flex-direction: row;
   gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+  /* keep scrollbar from causing layout jump */
+  scrollbar-width: thin;
+  scrollbar-color: #ddd transparent;
 }
+
+.tag-groups::-webkit-scrollbar { height: 6px; }
+.tag-groups::-webkit-scrollbar-track { background: transparent; }
+.tag-groups::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
 
 .tag-group {
   background: #fff;
   border: 1px solid #e8e8e8;
   border-radius: 10px;
   overflow: hidden;
+  flex: 0 0 300px; /* fixed width, never shrinks */
+  min-width: 0;
 }
 
 .tag-group-header {
@@ -863,6 +874,10 @@ body {
 
 .tag-group-body {
   padding: 8px 0;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #eee transparent;
 }
 
 .tag-row {
