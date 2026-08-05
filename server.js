@@ -69,12 +69,53 @@ app.get('/api/merchants', (_req, res) => {
   res.json(rows)
 })
 
-// GET /api/categories — all active (non-disabled) category names
+// GET /api/categories — active category names (for add-category dropdown)
 app.get('/api/categories', (_req, res) => {
   const rows = db.prepare(`
     SELECT name FROM category WHERE disabled = 'f' ORDER BY name
   `).all()
   res.json(rows.map(r => r.name))
+})
+
+// GET /api/categories/manage — full category data for the category manager
+app.get('/api/categories/manage', (_req, res) => {
+  const rows = db.prepare(`
+    SELECT
+      c.id,
+      c.name,
+      COALESCE(c.parent_id, '') AS parent_id,
+      COALESCE(p.name, '')      AS parent_name,
+      COUNT(mc.category_id)     AS merchant_count
+    FROM category c
+    LEFT JOIN category p         ON p.id = c.parent_id AND p.disabled = 'f'
+    LEFT JOIN merchant_category mc ON mc.category_id = c.id
+    WHERE c.disabled = 'f'
+    GROUP BY c.id
+    ORDER BY c.name
+  `).all()
+  res.json(rows)
+})
+
+// PUT /api/categories/:id/parent — set or clear a category's parent
+app.put('/api/categories/:id/parent', (req, res) => {
+  const { id } = req.params
+  const { parent_id } = req.body
+  db.prepare(`
+    UPDATE category SET parent_id = ?, modified_date = datetime('now') WHERE id = ?
+  `).run(parent_id || null, id)
+  res.json({ ok: true })
+})
+
+// DELETE /api/categories/:id — disable category, remove merchant mappings,
+// and promote any subcategories to top-level
+app.delete('/api/categories/:id', (req, res) => {
+  const { id } = req.params
+  db.transaction(() => {
+    db.prepare(`DELETE FROM merchant_category WHERE category_id = ?`).run(id)
+    db.prepare(`UPDATE category SET parent_id = NULL WHERE parent_id = ?`).run(id)
+    db.prepare(`UPDATE category SET disabled = 't', modified_date = datetime('now') WHERE id = ?`).run(id)
+  })()
+  res.json({ ok: true })
 })
 
 // PUT /api/merchants/:id/categories

@@ -1,6 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { Routes, Route } from 'react-router-dom'
 import MerchantModal from './MerchantModal'
+import CategoryManager from './CategoryManager'
+import Nav from './Nav'
 import { fetchMerchants } from './api'
+
+const PAGE_SIZE = 48
 
 function buildCategoryList(data) {
   return [...new Set(
@@ -48,19 +53,24 @@ function MerchantCard({ merchant, onClick }) {
   )
 }
 
-export default function App() {
+function MerchantBrowser() {
   const [merchantData, setMerchantData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
   const [activeMerchant, setActiveMerchant] = useState(null)
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE)
+  const sentinelRef = useRef(null)
 
   useEffect(() => {
     fetchMerchants()
       .then(data => { setMerchantData(data); setLoading(false) })
       .catch(err => { setError(err.message); setLoading(false) })
   }, [])
+
+  // Reset display count when filters change
+  useEffect(() => { setDisplayCount(PAGE_SIZE) }, [search, selectedCategory])
 
   const allCategories = useMemo(() => buildCategoryList(merchantData), [merchantData])
 
@@ -72,6 +82,22 @@ export default function App() {
       return matchesSearch && matchesCat
     })
   }, [merchantData, search, selectedCategory])
+
+  const visible = filtered.slice(0, displayCount)
+  const hasMore = displayCount < filtered.length
+
+  // Infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        setDisplayCount(prev => Math.min(prev + PAGE_SIZE, filtered.length))
+      }
+    }, { rootMargin: '200px' })
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [filtered.length, hasMore])
 
   function handleSave(updated) {
     setMerchantData(prev => prev.map(m => m.id === updated.id ? updated : m))
@@ -112,8 +138,8 @@ export default function App() {
       </div>
 
       <div className="grid">
-        {filtered.length > 0
-          ? filtered.map(m => (
+        {visible.length > 0
+          ? visible.map(m => (
               <MerchantCard
                 key={m.id}
                 merchant={m}
@@ -129,11 +155,31 @@ export default function App() {
         }
       </div>
 
+      {hasMore && (
+        <div ref={sentinelRef} className="load-sentinel">
+          <span className="load-hint">Showing {visible.length.toLocaleString()} of {filtered.length.toLocaleString()}</span>
+        </div>
+      )}
+
       <MerchantModal
         merchant={activeMerchant}
         onClose={() => setActiveMerchant(null)}
         onSave={handleSave}
       />
+    </>
+  )
+}
+
+export default function App() {
+  return (
+    <>
+      <Nav />
+      <main className="main-content">
+        <Routes>
+          <Route path="/" element={<MerchantBrowser />} />
+          <Route path="/categories" element={<CategoryManager />} />
+        </Routes>
+      </main>
     </>
   )
 }
