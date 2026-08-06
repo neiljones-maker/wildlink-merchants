@@ -275,6 +275,60 @@ app.get('/api/category-top', (_req, res) => {
   res.json(db.prepare(`SELECT * FROM category_top ORDER BY name`).all())
 })
 
+// GET /api/review-merchants — merchants needing category review (no subcategory or low/medium confidence)
+app.get('/api/review-merchants', (_req, res) => {
+  const rows = db.prepare(`
+    WITH active AS (
+      SELECT merchant_id AS id, MIN(TRIM(name)) AS name, MIN(url) AS url
+      FROM network_merchant WHERE disabled='f' AND name IS NOT NULL AND TRIM(name)!=''
+      GROUP BY merchant_id
+    ),
+    assigned AS (
+      SELECT ms.merchant_id, ct.name AS new_top_category, s.name AS new_subcategory,
+             ms.confidence, ms.basis
+      FROM merchant_subcategory ms
+      JOIN subcategory s ON s.id=ms.subcategory_id
+      JOIN category_top ct ON ct.id=s.top_category_id
+    )
+    SELECT a.id, a.name, a.url,
+           g.new_top_category, g.new_subcategory, g.confidence, g.basis
+    FROM active a
+    LEFT JOIN assigned g ON g.merchant_id = a.id
+    WHERE g.merchant_id IS NULL          -- unassigned
+       OR g.confidence IN ('Low','Medium')  -- low-confidence guesses
+    ORDER BY g.confidence IS NOT NULL, g.confidence, a.name COLLATE NOCASE
+  `).all()
+  res.json(rows)
+})
+
+// GET /api/new-categories/manage — new taxonomy with merchant counts for Category Manager
+app.get('/api/new-categories/manage', (_req, res) => {
+  // Top-level categories with total merchant count across all their subcategories
+  const tops = db.prepare(`
+    SELECT ct.id, ct.name,
+           COUNT(DISTINCT ms.merchant_id) AS merchant_count
+    FROM category_top ct
+    LEFT JOIN subcategory s    ON s.top_category_id = ct.id
+    LEFT JOIN merchant_subcategory ms ON ms.subcategory_id = s.id
+    GROUP BY ct.id
+    ORDER BY ct.name
+  `).all()
+
+  // Subcategories with their top category info and merchant count
+  const subs = db.prepare(`
+    SELECT s.id, s.name, s.top_category_id,
+           ct.name AS top_category_name,
+           COUNT(DISTINCT ms.merchant_id) AS merchant_count
+    FROM subcategory s
+    JOIN category_top ct ON ct.id = s.top_category_id
+    LEFT JOIN merchant_subcategory ms ON ms.subcategory_id = s.id
+    GROUP BY s.id
+    ORDER BY ct.name, s.name
+  `).all()
+
+  res.json({ tops, subs })
+})
+
 // GET /api/subcategories — all subcategories with top category info
 app.get('/api/subcategories', (_req, res) => {
   const rows = db.prepare(`
@@ -316,13 +370,31 @@ app.put('/api/merchants/:id/subcategories', (req, res) => {
 app.get('/api/occasion-tags', (_req, res) => {
   res.json(db.prepare(`SELECT * FROM occasion_tag ORDER BY name`).all())
 })
+app.post('/api/occasion-tags', (req, res) => {
+  const { name } = req.body
+  if (!name) return res.status(400).json({ error: 'name required' })
+  const r = db.prepare(`INSERT INTO occasion_tag (name) VALUES (?) RETURNING *`).get(name.trim())
+  res.json(r)
+})
 
 app.get('/api/audience-tags', (_req, res) => {
   res.json(db.prepare(`SELECT * FROM audience_tag ORDER BY name`).all())
 })
+app.post('/api/audience-tags', (req, res) => {
+  const { name } = req.body
+  if (!name) return res.status(400).json({ error: 'name required' })
+  const r = db.prepare(`INSERT INTO audience_tag (name) VALUES (?) RETURNING *`).get(name.trim())
+  res.json(r)
+})
 
 app.get('/api/business-model-tags', (_req, res) => {
   res.json(db.prepare(`SELECT * FROM business_model_tag ORDER BY name`).all())
+})
+app.post('/api/business-model-tags', (req, res) => {
+  const { name } = req.body
+  if (!name) return res.status(400).json({ error: 'name required' })
+  const r = db.prepare(`INSERT INTO business_model_tag (name) VALUES (?) RETURNING *`).get(name.trim())
+  res.json(r)
 })
 
 // PUT /api/merchants/:id/occasion-tags

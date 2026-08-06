@@ -14,6 +14,9 @@ export default function Nav() {
         <NavLink to="/tags" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
           Tags
         </NavLink>
+        <NavLink to="/review" className={({ isActive }) => isActive ? 'nav-link active nav-link-review' : 'nav-link nav-link-review'}>
+          Review
+        </NavLink>
       </div>
     </nav>
   )

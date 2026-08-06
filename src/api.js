@@ -85,6 +85,12 @@ export async function fetchCategoryTop() {
   return res.json()
 }
 
+export async function fetchNewCategoryManage() {
+  const res = await fetch('/api/new-categories/manage')
+  if (!res.ok) throw new Error('Failed to load new categories')
+  return res.json()
+}
+
 export async function fetchSubcategories() {
   const res = await fetch('/api/subcategories')
   if (!res.ok) throw new Error('Failed to load subcategories')
@@ -96,16 +102,31 @@ export async function fetchOccasionTags() {
   if (!res.ok) throw new Error('Failed to load occasion tags')
   return res.json()
 }
+export async function createOccasionTag(name) {
+  const res = await fetch('/api/occasion-tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+  if (!res.ok) throw new Error('Failed to create occasion tag')
+  return res.json()
+}
 
 export async function fetchAudienceTags() {
   const res = await fetch('/api/audience-tags')
   if (!res.ok) throw new Error('Failed to load audience tags')
   return res.json()
 }
+export async function createAudienceTag(name) {
+  const res = await fetch('/api/audience-tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+  if (!res.ok) throw new Error('Failed to create audience tag')
+  return res.json()
+}
 
 export async function fetchBusinessModelTags() {
   const res = await fetch('/api/business-model-tags')
   if (!res.ok) throw new Error('Failed to load business model tags')
+  return res.json()
+}
+export async function createBusinessModelTag(name) {
+  const res = await fetch('/api/business-model-tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+  if (!res.ok) throw new Error('Failed to create business model tag')
   return res.json()
 }
 

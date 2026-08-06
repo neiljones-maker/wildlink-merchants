@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom'
 import MerchantModal from './MerchantModal'
 import CategoryManager from './CategoryManager'
 import TagManager from './TagManager'
+import ReviewPage from './ReviewPage'
 import Nav from './Nav'
 import { fetchMerchants } from './api'
 
@@ -10,7 +11,7 @@ const PAGE_SIZE = 48
 
 function buildCategoryList(data) {
   return [...new Set(
-    data.flatMap(m => m.categories ? m.categories.split(',').map(c => c.trim()) : [])
+    data.flatMap(m => m.new_top_categories ? m.new_top_categories.split(',').map(c => c.trim()) : [])
   )].sort()
 }
 
@@ -19,71 +20,85 @@ function formatRate(rate) {
   return `${(rate * 100).toFixed(1)}%`
 }
 
+function MerchantLogo({ url, name }) {
+  const [err, setErr] = useState(false)
+  const domain = url ? url.replace(/^https?:\/\//, '').split('/')[0].replace(/^www\./, '') : ''
+  const initial = name ? name.charAt(0).toUpperCase() : '?'
+  // color from name hash for consistent letter avatars
+  const hue = name ? [...name].reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360 : 0
+
+  if (!domain || err) {
+    return (
+      <div className="card-logo-fallback" style={{ background: `hsl(${hue},55%,88%)`, color: `hsl(${hue},55%,35%)` }}>
+        {initial}
+      </div>
+    )
+  }
+  return (
+    <img
+      className="card-logo"
+      src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`}
+      alt=""
+      onError={() => setErr(true)}
+    />
+  )
+}
+
 function MerchantCard({ merchant, onClick }) {
   const rate = formatRate(merchant.default_rate)
+  const subList = merchant.new_subcategories ? merchant.new_subcategories.split(',').map(s => s.trim()).filter(Boolean) : []
+  const topList = merchant.new_top_categories ? merchant.new_top_categories.split(',').map(s => s.trim()).filter(Boolean) : []
+  const domain = merchant.url ? merchant.url.replace(/^https?:\/\//, '').replace(/\/$/, '') : ''
 
-  // New taxonomy
-  const newTopCats = merchant.new_top_categories
-    ? merchant.new_top_categories.split(',').map(s => s.trim()).filter(Boolean)
-    : []
-  const newSubCats = merchant.new_subcategories
-    ? merchant.new_subcategories.split(',').map(s => s.trim()).filter(Boolean)
-    : []
-  const occasionTags = merchant.occasion_tags
-    ? merchant.occasion_tags.split(',').map(s => s.trim()).filter(Boolean)
-    : []
-  const audienceTags = merchant.audience_tags
-    ? merchant.audience_tags.split(',').map(s => s.trim()).filter(Boolean)
-    : []
-  const bizTags = merchant.business_model_tags
-    ? merchant.business_model_tags.split(',').map(s => s.trim()).filter(Boolean)
-    : []
-
-  // Legacy tag pills (occasion/seasonal/audience from old system)
-  const legacyTags = merchant.tags
-    ? merchant.tags.split(',').map(entry => { const [name, type] = entry.split('|'); return name ? { name, type } : null }).filter(Boolean)
-    : []
+  const allTags = [
+    ...(merchant.occasion_tags ? merchant.occasion_tags.split(',').map(t => ({ name: t.trim(), type: 'occasion' })) : []),
+    ...(merchant.audience_tags ? merchant.audience_tags.split(',').map(t => ({ name: t.trim(), type: 'audience' })) : []),
+    ...(merchant.business_model_tags ? merchant.business_model_tags.split(',').map(t => ({ name: t.trim(), type: 'business-model' })) : []),
+  ].filter(t => t.name)
 
   return (
     <div className="card" onClick={onClick} role="button" tabIndex={0}
       onKeyDown={e => e.key === 'Enter' && onClick()}>
-      <div className="card-header">
-        <span className="merchant-name">{merchant.name}</span>
-        {rate && <span className="rate-badge">{rate}</span>}
+
+      <div className="card-identity">
+        <MerchantLogo url={merchant.url} name={merchant.name} />
+        <div className="card-identity-text">
+          <div className="card-title-row">
+            <span className="merchant-name">{merchant.name}</span>
+            {rate && <span className="rate-badge">{rate}</span>}
+          </div>
+          {domain && (
+            <a className="merchant-url" href={merchant.url} target="_blank" rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}>
+              {domain}
+            </a>
+          )}
+        </div>
       </div>
-      {merchant.url && (
-        <a className="merchant-url" href={merchant.url} target="_blank" rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}>
-          {merchant.url.replace(/^https?:\/\//, '')}
-        </a>
-      )}
 
-      {/* New taxonomy categories */}
-      {newSubCats.length > 0 ? (
-        <div className="categories">
-          {newTopCats.map(cat => (
-            <span key={cat} className="tag new-top-cat">{cat}</span>
-          ))}
-          {newSubCats.map(sub => (
-            <span key={sub} className="tag new-sub-cat">{sub}</span>
-          ))}
-        </div>
-      ) : (
-        <div className="categories">
-          <span className="no-categories">No category assigned</span>
-        </div>
-      )}
+      <div className="card-category">
+        {subList.length > 0 ? (
+          <div className="card-crumbs">
+            {subList.map((sub, i) => (
+              <span key={sub} className="card-cat-crumb">
+                <span className="crumb-top">{topList[i] || topList[0]}</span>
+                <span className="crumb-sep">›</span>
+                <span className="crumb-sub">{sub}</span>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="no-categories">Uncategorized</span>
+        )}
+      </div>
 
-      {/* New taxonomy tag pills */}
-      {(occasionTags.length > 0 || audienceTags.length > 0 || bizTags.length > 0 || legacyTags.length > 0) && (
+      {allTags.length > 0 && (
         <div className="card-tags">
-          {occasionTags.map(t => <span key={t} className="tag-pill occasion">{t}</span>)}
-          {audienceTags.map(t => <span key={t} className="tag-pill audience">{t}</span>)}
-          {bizTags.map(t => <span key={t} className="tag-pill business-model">{t}</span>)}
-          {legacyTags.map(t => <span key={t.name} className={`tag-pill ${t.type}`}>{t.name}</span>)}
+          {allTags.map(t => (
+            <span key={t.name + t.type} className={`tag-pill ${t.type}`}>{t.name}</span>
+          ))}
         </div>
       )}
-      <span className="card-cta">Click to view &amp; edit →</span>
     </div>
   )
 }
@@ -113,7 +128,7 @@ function MerchantBrowser() {
     const q = search.trim().toLowerCase()
     return merchantData.filter(m => {
       const matchesSearch = !q || m.name.toLowerCase().includes(q) || (m.url || '').toLowerCase().includes(q)
-      const matchesCat = !selectedCategory || (m.categories || '').split(',').map(c => c.trim()).includes(selectedCategory)
+      const matchesCat = !selectedCategory || (m.new_top_categories || '').split(',').map(c => c.trim()).includes(selectedCategory)
       return matchesSearch && matchesCat
     })
   }, [merchantData, search, selectedCategory])
@@ -214,6 +229,7 @@ export default function App() {
           <Route path="/" element={<MerchantBrowser />} />
           <Route path="/categories" element={<CategoryManager />} />
           <Route path="/tags" element={<TagManager />} />
+          <Route path="/review" element={<ReviewPage />} />
         </Routes>
       </main>
     </>

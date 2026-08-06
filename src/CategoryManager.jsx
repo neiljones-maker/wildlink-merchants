@@ -1,182 +1,101 @@
 import { useState, useEffect, useMemo } from 'react'
-import { fetchCategoryManage, setCategoryParent, deleteCategory } from './api'
+import { fetchNewCategoryManage } from './api'
 
-function ConfirmDelete({ name, onConfirm, onCancel }) {
+function TopCategoryRow({ cat, isExpanded, onToggle }) {
   return (
-    <div className="inline-confirm">
-      <span>Remove <strong>{name}</strong> and unassign it from all merchants?</span>
-      <button className="confirm-btn danger" onClick={onConfirm}>Yes, remove</button>
-      <button className="confirm-btn" onClick={onCancel}>Cancel</button>
-    </div>
-  )
-}
-
-function SetParentForm({ category, primaries, onSave, onCancel }) {
-  const [parentId, setParentId] = useState('')
-  const available = primaries.filter(p => p.id !== category.id)
-
-  return (
-    <div className="inline-confirm">
-      <span>Move <strong>{category.name}</strong> under:</span>
-      <select
-        className="category-select small"
-        value={parentId}
-        onChange={e => setParentId(e.target.value)}
-      >
-        <option value="">Choose a primary category…</option>
-        {available.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </select>
-      <button className="confirm-btn primary" onClick={() => parentId && onSave(parentId)} disabled={!parentId}>
-        Save
-      </button>
-      <button className="confirm-btn" onClick={onCancel}>Cancel</button>
-    </div>
-  )
-}
-
-function CategoryRow({ cat, primaries, onUpdate, onDelete }) {
-  const [mode, setMode] = useState(null) // null | 'delete' | 'setParent'
-  const [busy, setBusy] = useState(false)
-
-  async function handleMakePrimary() {
-    setBusy(true)
-    await setCategoryParent(cat.id, null)
-    onUpdate(cat.id, { parent_id: '', parent_name: '' })
-    setBusy(false)
-  }
-
-  async function handleSetParent(parentId) {
-    setBusy(true)
-    const parent = primaries.find(p => p.id === parentId)
-    await setCategoryParent(cat.id, parentId)
-    onUpdate(cat.id, { parent_id: parentId, parent_name: parent?.name || '' })
-    setMode(null)
-    setBusy(false)
-  }
-
-  async function handleDelete() {
-    setBusy(true)
-    await deleteCategory(cat.id)
-    onDelete(cat.id)
-    setBusy(false)
-  }
-
-  const isPrimary = !cat.parent_id
-
-  return (
-    <div className={`cat-row${busy ? ' busy' : ''}`}>
+    <div className="cat-row top-cat-row" onClick={onToggle} role="button" style={{ cursor: 'pointer' }}>
       <div className="cat-row-main">
         <div className="cat-name-cell">
+          <span className="expand-icon">{isExpanded ? '▾' : '▸'}</span>
           <span className="cat-name">{cat.name}</span>
-          <span className={`cat-type-badge ${isPrimary ? 'primary' : 'sub'}`}>
-            {isPrimary ? 'Primary' : 'Subcategory'}
-          </span>
+          <span className="cat-type-badge primary">Top Category</span>
         </div>
         <div className="cat-parent-cell">
-          {cat.parent_name
-            ? <span className="cat-parent-name">↳ {cat.parent_name}</span>
-            : <span className="cat-no-parent">—</span>
-          }
+          <span className="cat-no-parent">—</span>
         </div>
         <div className="cat-count-cell">
           <span className="cat-count">{cat.merchant_count.toLocaleString()}</span>
         </div>
-        <div className="cat-actions">
-          {isPrimary ? (
-            <button
-              className="action-btn"
-              onClick={() => setMode(mode === 'setParent' ? null : 'setParent')}
-              disabled={busy}
-              title="Move under a primary category"
-            >
-              Make subcategory
-            </button>
-          ) : (
-            <button
-              className="action-btn"
-              onClick={handleMakePrimary}
-              disabled={busy}
-              title="Promote to top-level primary"
-            >
-              Make primary
-            </button>
-          )}
-          <button
-            className="action-btn danger"
-            onClick={() => setMode(mode === 'delete' ? null : 'delete')}
-            disabled={busy}
-            title="Remove category and unassign from merchants"
-          >
-            Remove
-          </button>
-        </div>
+        <div className="cat-actions" />
       </div>
+    </div>
+  )
+}
 
-      {mode === 'delete' && (
-        <ConfirmDelete
-          name={cat.name}
-          onConfirm={handleDelete}
-          onCancel={() => setMode(null)}
-        />
-      )}
-      {mode === 'setParent' && (
-        <SetParentForm
-          category={cat}
-          primaries={primaries}
-          onSave={handleSetParent}
-          onCancel={() => setMode(null)}
-        />
-      )}
+function SubcategoryRow({ sub }) {
+  return (
+    <div className="cat-row sub-cat-row">
+      <div className="cat-row-main">
+        <div className="cat-name-cell" style={{ paddingLeft: '32px' }}>
+          <span className="cat-name">{sub.name}</span>
+          <span className="cat-type-badge sub">Subcategory</span>
+        </div>
+        <div className="cat-parent-cell">
+          <span className="cat-parent-name">↳ {sub.top_category_name}</span>
+        </div>
+        <div className="cat-count-cell">
+          <span className="cat-count">{sub.merchant_count.toLocaleString()}</span>
+        </div>
+        <div className="cat-actions" />
+      </div>
     </div>
   )
 }
 
 export default function CategoryManager() {
-  const [categories, setCategories] = useState([])
+  const [tops, setTops] = useState([])
+  const [subs, setSubs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
+  const [expandedIds, setExpandedIds] = useState(new Set())
 
   useEffect(() => {
-    fetchCategoryManage()
-      .then(data => { setCategories(data); setLoading(false) })
+    fetchNewCategoryManage()
+      .then(({ tops, subs }) => {
+        setTops(tops)
+        setSubs(subs)
+        // Expand all top categories by default
+        setExpandedIds(new Set(tops.map(t => t.id)))
+        setLoading(false)
+      })
       .catch(err => { setError(err.message); setLoading(false) })
   }, [])
 
-  const primaries = useMemo(() => categories.filter(c => !c.parent_id), [categories])
-
-  const displayed = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return categories.filter(c => {
-      const matchesSearch = !q || c.name.toLowerCase().includes(q) || (c.parent_name || '').toLowerCase().includes(q)
-      const matchesFilter =
-        filter === 'all' ||
-        (filter === 'primary' && !c.parent_id) ||
-        (filter === 'sub' && c.parent_id)
-      return matchesSearch && matchesFilter
+  function toggleExpand(id) {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
     })
-  }, [categories, search, filter])
-
-  function handleUpdate(id, changes) {
-    setCategories(prev => prev.map(c => c.id === id ? { ...c, ...changes } : c))
   }
 
-  function handleDelete(id) {
-    setCategories(prev => prev.filter(c => c.id !== id))
-  }
+  const q = search.trim().toLowerCase()
+
+  const filteredTops = useMemo(() => {
+    if (filter === 'sub') return []
+    return tops.filter(t =>
+      !q || t.name.toLowerCase().includes(q) ||
+      subs.some(s => s.top_category_id === t.id && s.name.toLowerCase().includes(q))
+    )
+  }, [tops, subs, q, filter])
+
+  const filteredSubs = useMemo(() => {
+    if (filter === 'primary') return []
+    return subs.filter(s =>
+      !q || s.name.toLowerCase().includes(q) || s.top_category_name.toLowerCase().includes(q)
+    )
+  }, [subs, q, filter])
 
   if (loading) return <div className="loading">Loading categories…</div>
   if (error) return <div className="loading error">Error: {error}</div>
-
-  const primaryCount = categories.filter(c => !c.parent_id).length
-  const subCount = categories.filter(c => c.parent_id).length
 
   return (
     <>
       <div className="header">
         <h1>Category Manager</h1>
-        <p>{categories.length} active categories · {primaryCount} primary · {subCount} subcategories</p>
+        <p>{tops.length} top categories · {subs.length} subcategories</p>
       </div>
 
       <div className="controls">
@@ -188,7 +107,7 @@ export default function CategoryManager() {
           onChange={e => setSearch(e.target.value)}
         />
         <div className="filter-tabs">
-          {[['all', 'All'], ['primary', 'Primary'], ['sub', 'Subcategories']].map(([val, label]) => (
+          {[['all', 'All'], ['primary', 'Top Categories'], ['sub', 'Subcategories']].map(([val, label]) => (
             <button
               key={val}
               className={`filter-tab${filter === val ? ' active' : ''}`}
@@ -198,7 +117,11 @@ export default function CategoryManager() {
             </button>
           ))}
         </div>
-        <span className="results-count">{displayed.length.toLocaleString()} shown</span>
+        <span className="results-count">
+          {filter === 'primary' ? `${filteredTops.length} shown`
+            : filter === 'sub' ? `${filteredSubs.length} shown`
+            : `${filteredTops.length + filteredSubs.length} shown`}
+        </span>
       </div>
 
       <div className="cat-table">
@@ -206,24 +129,34 @@ export default function CategoryManager() {
           <div className="cat-name-cell">Category</div>
           <div className="cat-parent-cell">Parent</div>
           <div className="cat-count-cell">Merchants</div>
-          <div className="cat-actions">Actions</div>
+          <div className="cat-actions" />
         </div>
-        {displayed.length > 0
-          ? displayed.map(cat => (
-              <CategoryRow
-                key={cat.id}
-                cat={cat}
-                primaries={primaries}
-                onUpdate={handleUpdate}
-                onDelete={handleDelete}
+
+        {filter === 'sub' ? (
+          filteredSubs.map(sub => <SubcategoryRow key={sub.id} sub={sub} />)
+        ) : filter === 'primary' ? (
+          filteredTops.map(top => <TopCategoryRow key={top.id} cat={top} isExpanded={false} onToggle={() => {}} />)
+        ) : (
+          filteredTops.map(top => (
+            <div key={top.id}>
+              <TopCategoryRow
+                cat={top}
+                isExpanded={expandedIds.has(top.id)}
+                onToggle={() => toggleExpand(top.id)}
               />
-            ))
-          : (
-            <div className="empty-state" style={{ gridColumn: '1/-1', padding: '40px 0' }}>
-              <h2>No categories found</h2>
+              {expandedIds.has(top.id) && filteredSubs
+                .filter(s => s.top_category_id === top.id)
+                .map(sub => <SubcategoryRow key={sub.id} sub={sub} />)
+              }
             </div>
-          )
-        }
+          ))
+        )}
+
+        {filteredTops.length === 0 && filteredSubs.length === 0 && (
+          <div className="empty-state" style={{ gridColumn: '1/-1', padding: '40px 0' }}>
+            <h2>No categories found</h2>
+          </div>
+        )}
       </div>
     </>
   )
